@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Morceaux d'image interactifs - 20 Pièces</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #1a1a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        canvas {
+            border: 2px solid #555;
+            background-color: #000;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const image = new Image();
+        image.src = 'Imprim.jpg'; 
+        
+        // --- CONFIGURATION ---
+        const NUM_PIECES = 20;
+        const COLS = 5; // 5 colonnes
+        const ROWS = 4; // 4 lignes (5x4 = 20 pièces)
+        const INITIAL_SPEED = 0.6; 
+
+        let pieces = [];
+        let imageLoaded = false;
+
+        image.onload = () => {
+            imageLoaded = true;
+            initGame();
+            animate();
+        };
+
+        function initGame() {
+            canvas.width = window.innerWidth * 0.95;
+            canvas.height = window.innerHeight * 0.95;
+            if (canvas.width > 1000) canvas.width = 1000;
+            if (canvas.height > 800) canvas.height = 800;
+
+            const sw = image.width / COLS;  // Largeur source
+            const sh = image.height / ROWS; // Hauteur source
+            
+            const dw = canvas.width / (COLS * 1.5); // Taille affichée (un peu plus petit pour laisser de la place)
+            const dh = (sh * dw) / sw;               // Garde le ratio
+
+            pieces = [];
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    pieces.push({
+                        x: Math.random() * (canvas.width - dw),
+                        y: Math.random() * (canvas.height - dh),
+                        
+                        // Vitesse totalement aléatoire (X et Y)
+                        vx: (Math.random() - 0.5) * 4 * INITIAL_SPEED,
+                        vy: (Math.random() - 0.5) * 4 * INITIAL_SPEED,
+                        
+                        moving: true,
+
+                        // Zone de l'image
+                        sourceX: c * sw,
+                        sourceY: r * sh,
+                        sourceWidth: sw,
+                        sourceHeight: sh,
+
+                        drawWidth: dw,
+                        drawHeight: dh
+                    });
+                }
+            }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            pieces.forEach(piece => {
+                if (piece.moving) {
+                    piece.x += piece.vx;
+                    piece.y += piece.vy;
+
+                    // Rebond Gauche/Droite
+                    if (piece.x <= 0 || piece.x + piece.drawWidth >= canvas.width) {
+                        piece.vx *= -1;
+                        piece.x = piece.x <= 0 ? 0 : canvas.width - piece.drawWidth;
+                    }
+
+                    // Rebond Haut/Bas
+                    if (piece.y <= 0 || piece.y + piece.drawHeight >= canvas.height) {
+                        piece.vy *= -1;
+                        piece.y = piece.y <= 0 ? 0 : canvas.height - piece.drawHeight;
+                    }
+                }
+
+                ctx.drawImage(
+                    image,
+                    piece.sourceX, piece.sourceY, piece.sourceWidth, piece.sourceHeight,
+                    piece.x, piece.y, piece.drawWidth, piece.drawHeight
+                );
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        // Interaction Clic ou Tactile
+        function handleInteraction(e) {
+            const rect = canvas.getBoundingClientRect();
+            // Support Souris ou Toucher
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+            
+            const clickX = clientX - rect.left;
+            const clickY = clientY - rect.top;
+
+            // On vérifie en partant de la fin pour cliquer sur la pièce "au dessus"
+            for (let i = pieces.length - 1; i >= 0; i--) {
+                const p = pieces[i];
+                if (clickX > p.x && clickX < p.x + p.drawWidth &&
+                    clickY > p.y && clickY < p.y + p.drawHeight) {
+                    p.moving = !p.moving;
+                    break; // Arrête après avoir touché une pièce
+                }
+            }
+        }
+
+        canvas.addEventListener('mousedown', handleInteraction);
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            handleInteraction(e);
+        }, { passive: false });
+
+        window.addEventListener('resize', () => {
+            if (imageLoaded) initGame();
+        });
+    </script>
+</body>
+</html>
