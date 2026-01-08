@@ -3,12 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Puzzle 14 - Precision Mode</title>
+    <title>Puzzle 18 - Chat Edition</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #050505; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; }
-        canvas { background-color: #000; cursor: crosshair; touch-action: none; }
+        canvas { background-color: #000; cursor: crosshair; touch-action: none; border-radius: 4px; }
         #ui { color: #888; font-size: 10px; margin-bottom: 5px; text-align: center; pointer-events: none; }
         #count { color: #00ff88; font-weight: bold; }
+        
+        /* Message de victoire */
+        #victory {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 255, 136, 0.9);
+            color: #000;
+            padding: 20px 40px;
+            border-radius: 15px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.5);
+            pointer-events: auto;
+        }
+
         .flash-red { animation: flashRed 0.3s; }
         .flash-yellow { animation: flashYellow 0.3s; }
         @keyframes flashRed { 0% { background-color: #500; } 100% { background-color: #050505; } }
@@ -16,21 +35,24 @@
     </style>
 </head>
 <body>
-    <div id="ui">💀: Détache | ⚡: Vitesse x2 | FIXÉES: <span id="count">0</span>/14</div>
+    <div id="ui">💀: Détache | ⚡: Vitesse x2 | PROGRÈS: <span id="count">0</span>/18</div>
     <canvas id="gameCanvas"></canvas>
+    <div id="victory" onclick="location.reload()">VICTOIRE ! 😺<br><span style="font-size:14px">Toucher pour rejouer</span></div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const countDisplay = document.getElementById('count');
+        const victoryMsg = document.getElementById('victory');
 
         const image = new Image();
         image.src = 'Imprim.jpg'; 
         
-        const COLS = 7;
-        const ROWS = 2; // Total 14 pièces
+        const COLS = 6;
+        const ROWS = 3; // 6x3 = 18 pièces
         let pieces = [], obstacles = [];
         let gameBounds = { x: 0, y: 0, w: 0, h: 0 };
+        let gameFinished = false;
 
         image.onload = () => { initGame(); animate(); };
 
@@ -39,7 +61,7 @@
             canvas.height = window.innerHeight * 0.9;
 
             const imgRatio = image.width / image.height;
-            let pW = canvas.width * 0.9;
+            let pW = canvas.width * 0.95;
             let pH = pW / imgRatio;
 
             if (pH > canvas.height * 0.8) {
@@ -47,12 +69,7 @@
                 pW = pH * imgRatio;
             }
 
-            gameBounds = {
-                x: (canvas.width - pW) / 2,
-                y: (canvas.height - pH) / 2,
-                w: pW,
-                h: pH
-            };
+            gameBounds = { x: (canvas.width - pW) / 2, y: (canvas.height - pH) / 2, w: pW, h: pH };
 
             const dw = pW / COLS;
             const dh = pH / ROWS;
@@ -80,11 +97,12 @@
             obstacles = [];
             for (let i = 0; i < 8; i++) {
                 obstacles.push({
-                    x: gameBounds.x + Math.random() * (gameBounds.w - dw),
-                    y: gameBounds.y + Math.random() * (gameBounds.h - dh),
+                    x: gameBounds.x + Math.random() * (gameBounds.w - dw/2),
+                    y: gameBounds.y + Math.random() * (gameBounds.h - dh/2),
                     vx: (Math.random() - 0.5) * 6,
                     vy: (Math.random() - 0.5) * 6,
-                    drawW: dw, drawH: dh,
+                    drawW: dw / 2, 
+                    drawH: dh / 2,
                     type: i < 4 ? 'skull' : 'speed',
                     active: true
                 });
@@ -92,32 +110,23 @@
         }
 
         function resolveCollisions() {
-            const active = [...pieces.filter(p => !p.fixed), ...obstacles.filter(o => o.active)];
+            if (gameFinished) return;
+            const activeObs = obstacles.filter(o => o.active);
+            const active = [...pieces.filter(p => !p.fixed), ...activeObs];
             
             for (let i = 0; i < active.length; i++) {
                 let a = active[i];
-
-                // Rebond sur les bords du CADRE PRÉDÉFINI
                 if (a.x <= gameBounds.x) { a.x = gameBounds.x; a.vx *= -1; }
                 if (a.x + a.drawW >= gameBounds.x + gameBounds.w) { a.x = gameBounds.x + gameBounds.w - a.drawW; a.vx *= -1; }
                 if (a.y <= gameBounds.y) { a.y = gameBounds.y; a.vy *= -1; }
                 if (a.y + a.drawH >= gameBounds.y + gameBounds.h) { a.y = gameBounds.y + gameBounds.h - a.drawH; a.vy *= -1; }
 
-                // Anti-superposition entre cases
                 for (let j = i + 1; j < active.length; j++) {
                     let b = active[j];
-                    let dx = (a.x + a.drawW/2) - (b.x + b.drawW/2);
-                    let dy = (a.y + a.drawH/2) - (b.y + b.drawH/2);
-                    
-                    if (Math.abs(dx) < a.drawW && Math.abs(dy) < a.drawH) {
-                        // Rebond
+                    if (a.x < b.x + b.drawW && a.x + a.drawW > b.x && a.y < b.y + b.drawH && a.y + a.drawH > b.y) {
                         [a.vx, b.vx] = [b.vx, a.vx];
                         [a.vy, b.vy] = [b.vy, a.vy];
-                        // Pousser pour séparer
-                        let overlapX = a.drawW - Math.abs(dx);
-                        let overlapY = a.drawH - Math.abs(dy);
-                        if (overlapX < overlapY) a.x += dx > 0 ? 2 : -2;
-                        else a.y += dy > 0 ? 2 : -2;
+                        a.x += a.vx; a.y += a.vy; 
                     }
                 }
             }
@@ -125,13 +134,6 @@
 
         function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // Dessin du cadre cible
-            ctx.strokeStyle = "#222";
-            ctx.setLineDash([5, 5]);
-            ctx.strokeRect(gameBounds.x, gameBounds.y, gameBounds.w, gameBounds.h);
-            ctx.setLineDash([]);
-
             resolveCollisions();
 
             pieces.forEach(p => {
@@ -142,28 +144,27 @@
                     p.y += (p.targetY - p.y) * 0.2;
                 }
                 ctx.drawImage(image, p.sourceX, p.sourceY, p.sourceW, p.sourceH, p.x, p.y, p.drawW, p.drawH);
-                if (!p.fixed) {
-                    ctx.strokeStyle = "rgba(0,255,136,0.2)";
-                    ctx.strokeRect(p.x, p.y, p.drawW, p.drawH);
-                }
             });
 
-            obstacles.forEach(o => {
-                if (!o.active) return;
-                o.x += o.vx; o.y += o.vy;
-                ctx.fillStyle = "#111";
-                ctx.fillRect(o.x, o.y, o.drawW, o.drawH);
-                ctx.strokeStyle = o.type === 'skull' ? "red" : "yellow";
-                ctx.strokeRect(o.x, o.y, o.drawW, o.drawH);
-                ctx.font = "20px Arial";
-                ctx.textAlign = "center";
-                ctx.fillText(o.type === 'skull' ? "💀" : "⚡", o.x + o.drawW/2, o.y + o.drawH/1.5);
-            });
+            if (!gameFinished) {
+                obstacles.forEach(o => {
+                    if (!o.active) return;
+                    o.x += o.vx; o.y += o.vy;
+                    ctx.fillStyle = "#111";
+                    ctx.fillRect(o.x, o.y, o.drawW, o.drawH);
+                    ctx.strokeStyle = o.type === 'skull' ? "red" : "yellow";
+                    ctx.strokeRect(o.x, o.y, o.drawW, o.drawH);
+                    ctx.font = "14px Arial";
+                    ctx.textAlign = "center";
+                    ctx.fillText(o.type === 'skull' ? "💀" : "⚡", o.x + o.drawW/2, o.y + o.drawH/1.4);
+                });
+            }
 
             requestAnimationFrame(animate);
         }
 
         function handleInteraction(e) {
+            if (gameFinished) return;
             const rect = canvas.getBoundingClientRect();
             const clientX = e.clientX || (e.touches && e.touches[0].clientX);
             const clientY = e.clientY || (e.touches && e.touches[0].clientY);
@@ -175,7 +176,7 @@
                     if (o.type === 'skull') {
                         document.body.classList.add('flash-red');
                         setTimeout(() => document.body.classList.remove('flash-red'), 300);
-                        pieces.forEach(p => { p.fixed = false; p.vx *= 1.5; });
+                        pieces.forEach(p => { p.fixed = false; p.vx *= 1.3; p.vy *= 1.3; });
                     } else {
                         document.body.classList.add('flash-yellow');
                         setTimeout(() => document.body.classList.remove('flash-yellow'), 300);
@@ -196,7 +197,12 @@
         }
 
         function updateCount() {
-            countDisplay.textContent = pieces.filter(p => p.fixed).length;
+            const totalFixed = pieces.filter(p => p.fixed).length;
+            countDisplay.textContent = totalFixed;
+            if (totalFixed === pieces.length) {
+                gameFinished = true;
+                victoryMsg.style.display = "block";
+            }
         }
 
         canvas.addEventListener('mousedown', handleInteraction);
