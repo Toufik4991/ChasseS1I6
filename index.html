@@ -3,29 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Puzzle Smartphone Pro</title>
+    <title>Puzzle 14 - Precision Mode</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #050505; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; }
-        canvas { border: 2px solid #333; background-color: #000; cursor: crosshair; transition: transform 0.1s; border-radius: 5px; }
-        #ui { color: #888; font-size: 10px; letter-spacing: 1px; margin-bottom: 8px; text-align: center; pointer-events: none; width: 90%; }
-        #count { color: #00ff88; font-weight: bold; font-size: 12px; }
-        
-        /* Animations d'impact */
-        .flash-red { animation: flashRed 0.4s ease-out; }
-        .flash-yellow { animation: flashYellow 0.4s ease-out; }
-        .shake { animation: shake 0.3s; }
-
-        @keyframes flashRed { 0% { background-color: #400; } 100% { background-color: #050505; } }
-        @keyframes flashYellow { 0% { background-color: #440; } 100% { background-color: #050505; } }
-        @keyframes shake {
-            0%, 100% { transform: translate(0, 0); }
-            25% { transform: translate(-4px, 2px); }
-            75% { transform: translate(4px, -2px); }
-        }
+        canvas { background-color: #000; cursor: crosshair; touch-action: none; }
+        #ui { color: #888; font-size: 10px; margin-bottom: 5px; text-align: center; pointer-events: none; }
+        #count { color: #00ff88; font-weight: bold; }
+        .flash-red { animation: flashRed 0.3s; }
+        .flash-yellow { animation: flashYellow 0.3s; }
+        @keyframes flashRed { 0% { background-color: #500; } 100% { background-color: #050505; } }
+        @keyframes flashYellow { 0% { background-color: #550; } 100% { background-color: #050505; } }
     </style>
 </head>
 <body>
-    <div id="ui">💀: Détache | ⚡: Vitesse x2 | FIXÉES: <span id="count">0</span>/12</div>
+    <div id="ui">💀: Détache | ⚡: Vitesse x2 | FIXÉES: <span id="count">0</span>/14</div>
     <canvas id="gameCanvas"></canvas>
 
     <script>
@@ -36,43 +27,35 @@
         const image = new Image();
         image.src = 'Imprim.jpg'; 
         
-        const COLS = 4;
-        const ROWS = 3;
-        let pieces = [];
-        let obstacles = [];
-        let imageLoaded = false;
+        const COLS = 7;
+        const ROWS = 2; // Total 14 pièces
+        let pieces = [], obstacles = [];
+        let gameBounds = { x: 0, y: 0, w: 0, h: 0 };
 
-        image.onload = () => {
-            imageLoaded = true;
-            initGame();
-            animate();
-        };
+        image.onload = () => { initGame(); animate(); };
 
         function initGame() {
-            // Adaptation à la taille réelle du smartphone
-            const margin = 20;
-            const availableW = window.innerWidth - margin;
-            const availableH = window.innerHeight * 0.8; // Laisse de la place pour l'UI
-            
-            // Calcul du ratio pour ne pas déformer l'image
-            const imgRatio = image.width / image.height;
-            let finalW = availableW;
-            let finalH = finalW / imgRatio;
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight * 0.9;
 
-            if (finalH > availableH) {
-                finalH = availableH;
-                finalW = finalH * imgRatio;
+            const imgRatio = image.width / image.height;
+            let pW = canvas.width * 0.9;
+            let pH = pW / imgRatio;
+
+            if (pH > canvas.height * 0.8) {
+                pH = canvas.height * 0.8;
+                pW = pH * imgRatio;
             }
 
-            canvas.width = availableW;
-            canvas.height = availableH;
+            gameBounds = {
+                x: (canvas.width - pW) / 2,
+                y: (canvas.height - pH) / 2,
+                w: pW,
+                h: pH
+            };
 
-            const dw = finalW / COLS;
-            const dh = finalH / ROWS;
-            const offsetX = (canvas.width - finalW) / 2;
-            const offsetY = (canvas.height - finalH) / 2;
-
-            // Découpage de l'image source
+            const dw = pW / COLS;
+            const dh = pH / ROWS;
             const sw = image.width / COLS;
             const sh = image.height / ROWS;
 
@@ -80,10 +63,10 @@
             for (let r = 0; r < ROWS; r++) {
                 for (let c = 0; c < COLS; c++) {
                     pieces.push({
-                        x: Math.random() * (canvas.width - dw),
-                        y: Math.random() * (canvas.height - dh),
-                        targetX: offsetX + (c * dw),
-                        targetY: offsetY + (r * dh),
+                        x: gameBounds.x + Math.random() * (gameBounds.w - dw),
+                        y: gameBounds.y + Math.random() * (gameBounds.h - dh),
+                        targetX: gameBounds.x + (c * dw),
+                        targetY: gameBounds.y + (r * dh),
                         vx: (Math.random() - 0.5) * 4,
                         vy: (Math.random() - 0.5) * 4,
                         fixed: false,
@@ -97,8 +80,8 @@
             obstacles = [];
             for (let i = 0; i < 8; i++) {
                 obstacles.push({
-                    x: Math.random() * (canvas.width - dw),
-                    y: Math.random() * (canvas.height - dh),
+                    x: gameBounds.x + Math.random() * (gameBounds.w - dw),
+                    y: gameBounds.y + Math.random() * (gameBounds.h - dh),
                     vx: (Math.random() - 0.5) * 6,
                     vy: (Math.random() - 0.5) * 6,
                     drawW: dw, drawH: dh,
@@ -106,31 +89,35 @@
                     active: true
                 });
             }
-            updateCount();
         }
 
-        function triggerEffect(type) {
-            document.body.classList.remove('flash-red', 'flash-yellow');
-            canvas.classList.remove('shake');
-            void document.body.offsetWidth; 
-            if (type === 'skull') {
-                document.body.classList.add('flash-red');
-                canvas.classList.add('shake');
-            } else {
-                document.body.classList.add('flash-yellow');
-            }
-        }
-
-        function checkCollisions() {
-            const activeObs = obstacles.filter(o => o.active);
-            const active = [...pieces.filter(p => !p.fixed), ...activeObs];
+        function resolveCollisions() {
+            const active = [...pieces.filter(p => !p.fixed), ...obstacles.filter(o => o.active)];
+            
             for (let i = 0; i < active.length; i++) {
+                let a = active[i];
+
+                // Rebond sur les bords du CADRE PRÉDÉFINI
+                if (a.x <= gameBounds.x) { a.x = gameBounds.x; a.vx *= -1; }
+                if (a.x + a.drawW >= gameBounds.x + gameBounds.w) { a.x = gameBounds.x + gameBounds.w - a.drawW; a.vx *= -1; }
+                if (a.y <= gameBounds.y) { a.y = gameBounds.y; a.vy *= -1; }
+                if (a.y + a.drawH >= gameBounds.y + gameBounds.h) { a.y = gameBounds.y + gameBounds.h - a.drawH; a.vy *= -1; }
+
+                // Anti-superposition entre cases
                 for (let j = i + 1; j < active.length; j++) {
-                    let a = active[i], b = active[j];
-                    if (Math.abs(a.x - b.x) < a.drawW && Math.abs(a.y - b.y) < a.drawH) {
+                    let b = active[j];
+                    let dx = (a.x + a.drawW/2) - (b.x + b.drawW/2);
+                    let dy = (a.y + a.drawH/2) - (b.y + b.drawH/2);
+                    
+                    if (Math.abs(dx) < a.drawW && Math.abs(dy) < a.drawH) {
+                        // Rebond
                         [a.vx, b.vx] = [b.vx, a.vx];
                         [a.vy, b.vy] = [b.vy, a.vy];
-                        a.x += a.vx; a.y += a.vy;
+                        // Pousser pour séparer
+                        let overlapX = a.drawW - Math.abs(dx);
+                        let overlapY = a.drawH - Math.abs(dy);
+                        if (overlapX < overlapY) a.x += dx > 0 ? 2 : -2;
+                        else a.y += dy > 0 ? 2 : -2;
                     }
                 }
             }
@@ -138,20 +125,25 @@
 
         function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            checkCollisions();
+            
+            // Dessin du cadre cible
+            ctx.strokeStyle = "#222";
+            ctx.setLineDash([5, 5]);
+            ctx.strokeRect(gameBounds.x, gameBounds.y, gameBounds.w, gameBounds.h);
+            ctx.setLineDash([]);
+
+            resolveCollisions();
 
             pieces.forEach(p => {
                 if (!p.fixed) {
                     p.x += p.vx; p.y += p.vy;
-                    if (p.x <= 0 || p.x + p.drawW >= canvas.width) p.vx *= -1;
-                    if (p.y <= 0 || p.y + p.drawH >= canvas.height) p.vy *= -1;
                 } else {
                     p.x += (p.targetX - p.x) * 0.2;
                     p.y += (p.targetY - p.y) * 0.2;
                 }
                 ctx.drawImage(image, p.sourceX, p.sourceY, p.sourceW, p.sourceH, p.x, p.y, p.drawW, p.drawH);
                 if (!p.fixed) {
-                    ctx.strokeStyle = "rgba(255,255,255,0.2)";
+                    ctx.strokeStyle = "rgba(0,255,136,0.2)";
                     ctx.strokeRect(p.x, p.y, p.drawW, p.drawH);
                 }
             });
@@ -159,8 +151,6 @@
             obstacles.forEach(o => {
                 if (!o.active) return;
                 o.x += o.vx; o.y += o.vy;
-                if (o.x <= 0 || o.x + o.drawW >= canvas.width) o.vx *= -1;
-                if (o.y <= 0 || o.y + o.drawH >= canvas.height) o.vy *= -1;
                 ctx.fillStyle = "#111";
                 ctx.fillRect(o.x, o.y, o.drawW, o.drawH);
                 ctx.strokeStyle = o.type === 'skull' ? "red" : "yellow";
@@ -169,6 +159,7 @@
                 ctx.textAlign = "center";
                 ctx.fillText(o.type === 'skull' ? "💀" : "⚡", o.x + o.drawW/2, o.y + o.drawH/1.5);
             });
+
             requestAnimationFrame(animate);
         }
 
@@ -182,12 +173,14 @@
             for (let o of obstacles) {
                 if (o.active && clickX > o.x && clickX < o.x + o.drawW && clickY > o.y && clickY < o.y + o.drawH) {
                     if (o.type === 'skull') {
-                        triggerEffect('skull');
-                        pieces.forEach(p => { if(p.fixed) { p.fixed = false; p.vx = (Math.random()-0.5)*12; p.vy = (Math.random()-0.5)*12; } });
+                        document.body.classList.add('flash-red');
+                        setTimeout(() => document.body.classList.remove('flash-red'), 300);
+                        pieces.forEach(p => { p.fixed = false; p.vx *= 1.5; });
                     } else {
-                        triggerEffect('speed');
+                        document.body.classList.add('flash-yellow');
+                        setTimeout(() => document.body.classList.remove('flash-yellow'), 300);
                         o.active = false;
-                        [...pieces.filter(p => !p.fixed), ...obstacles.filter(ob => ob.active)].forEach(el => { el.vx *= 2; el.vy *= 2; });
+                        [...pieces.filter(p => !p.fixed), ...obstacles].forEach(el => { el.vx *= 2; el.vy *= 2; });
                     }
                     updateCount(); return;
                 }
@@ -197,7 +190,6 @@
                 const p = pieces[i];
                 if (clickX > p.x && clickX < p.x + p.drawW && clickY > p.y && clickY < p.y + p.drawH) {
                     p.fixed = !p.fixed;
-                    if (!p.fixed) { p.vx = (Math.random()-0.5)*8; p.vy = (Math.random()-0.5)*8; }
                     updateCount(); break;
                 }
             }
@@ -209,7 +201,6 @@
 
         canvas.addEventListener('mousedown', handleInteraction);
         canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleInteraction(e); }, { passive: false });
-        window.addEventListener('resize', initGame);
     </script>
 </body>
 </html>
