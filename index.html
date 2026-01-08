@@ -3,41 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Morceaux d'image interactifs - 20 Pièces</title>
+    <title>Puzzle Mortel - Collision Stable</title>
     <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            background-color: #1a1a1a;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
-        canvas {
-            border: 2px solid #555;
-            background-color: #000;
-            cursor: pointer;
-        }
+        body { margin: 0; overflow: hidden; background-color: #050505; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: 'Courier New', monospace; }
+        canvas { border: 4px solid #333; background-color: #000; cursor: crosshair; transition: border-color 0.2s; }
+        #ui { position: absolute; top: 10px; color: #ff0055; font-size: 18px; text-align: center; pointer-events: none; width: 100%; text-shadow: 0 0 10px rgba(255,0,85,0.5); }
     </style>
 </head>
 <body>
+    <div id="ui">PIÈCES RESTANTES : <span id="count">0</span> | ÉVITEZ LES 💀</div>
     <canvas id="gameCanvas"></canvas>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+        const countDisplay = document.getElementById('count');
 
         const image = new Image();
         image.src = 'Imprim.jpg'; 
         
-        // --- CONFIGURATION ---
-        const NUM_PIECES = 20;
-        const COLS = 5; // 5 colonnes
-        const ROWS = 4; // 4 lignes (5x4 = 20 pièces)
-        const INITIAL_SPEED = 0.6; 
+        const COLS = 5;
+        const ROWS = 4;
+        let globalSpeedMult = 1.4; // Vitesse de base encore plus rapide
 
         let pieces = [];
+        let skulls = [];
         let imageLoaded = false;
 
         image.onload = () => {
@@ -48,15 +38,16 @@
 
         function initGame() {
             canvas.width = window.innerWidth * 0.95;
-            canvas.height = window.innerHeight * 0.95;
-            if (canvas.width > 1000) canvas.width = 1000;
-            if (canvas.height > 800) canvas.height = 800;
-
-            const sw = image.width / COLS;  // Largeur source
-            const sh = image.height / ROWS; // Hauteur source
+            canvas.height = window.innerHeight * 0.9;
             
-            const dw = canvas.width / (COLS * 1.5); // Taille affichée (un peu plus petit pour laisser de la place)
-            const dh = (sh * dw) / sw;               // Garde le ratio
+            const sw = image.width / COLS;
+            const sh = image.height / ROWS;
+            const finalW = Math.min(canvas.width * 0.7, 700);
+            const finalH = (image.height * finalW) / image.width;
+            const dw = finalW / COLS;
+            const dh = finalH / ROWS;
+            const offsetX = (canvas.width - finalW) / 2;
+            const offsetY = (canvas.height - finalH) / 2;
 
             pieces = [];
             for (let r = 0; r < ROWS; r++) {
@@ -64,87 +55,160 @@
                     pieces.push({
                         x: Math.random() * (canvas.width - dw),
                         y: Math.random() * (canvas.height - dh),
-                        
-                        // Vitesse totalement aléatoire (X et Y)
-                        vx: (Math.random() - 0.5) * 4 * INITIAL_SPEED,
-                        vy: (Math.random() - 0.5) * 4 * INITIAL_SPEED,
-                        
-                        moving: true,
-
-                        // Zone de l'image
-                        sourceX: c * sw,
-                        sourceY: r * sh,
-                        sourceWidth: sw,
-                        sourceHeight: sh,
-
-                        drawWidth: dw,
-                        drawHeight: dh
+                        targetX: offsetX + (c * dw),
+                        targetY: offsetY + (r * dh),
+                        vx: (Math.random() - 0.5) * 10 * globalSpeedMult,
+                        vy: (Math.random() - 0.5) * 10 * globalSpeedMult,
+                        fixed: false,
+                        sourceX: c * sw, sourceY: r * sh,
+                        sourceWidth: sw, sourceHeight: sh,
+                        drawWidth: dw, drawHeight: dh
                     });
+                }
+            }
+
+            skulls = [];
+            for (let i = 0; i < 3; i++) {
+                skulls.push({
+                    x: Math.random() * (canvas.width - dw),
+                    y: Math.random() * (canvas.height - dh),
+                    vx: (Math.random() - 0.5) * 14 * globalSpeedMult,
+                    vy: (Math.random() - 0.5) * 14 * globalSpeedMult,
+                    drawWidth: dw,
+                    drawHeight: dh
+                });
+            }
+            updateCount();
+        }
+
+        function checkCollisions() {
+            // On ne gère les collisions que pour les objets qui BOUGENT
+            const activeElements = [...pieces.filter(p => !p.fixed), ...skulls];
+            
+            for (let i = 0; i < activeElements.length; i++) {
+                for (let j = i + 1; j < activeElements.length; j++) {
+                    let p1 = activeElements[i];
+                    let p2 = activeElements[j];
+
+                    // Détection de collision
+                    if (p1.x < p2.x + p2.drawWidth &&
+                        p1.x + p1.drawWidth > p2.x &&
+                        p1.y < p2.y + p2.drawHeight &&
+                        p1.y + p1.drawHeight > p2.y) {
+                        
+                        // Échange de vecteurs vitesse (Rebond)
+                        [p1.vx, p2.vx] = [p2.vx, p1.vx];
+                        [p1.vy, p2.vy] = [p2.vy, p1.vy];
+                        
+                        // Sortie de collision forcée pour éviter le blocage
+                        p1.x += p1.vx;
+                        p1.y += p1.vy;
+                    }
                 }
             }
         }
 
         function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            checkCollisions();
 
-            pieces.forEach(piece => {
-                if (piece.moving) {
-                    piece.x += piece.vx;
-                    piece.y += piece.vy;
-
-                    // Rebond Gauche/Droite
-                    if (piece.x <= 0 || piece.x + piece.drawWidth >= canvas.width) {
-                        piece.vx *= -1;
-                        piece.x = piece.x <= 0 ? 0 : canvas.width - piece.drawWidth;
-                    }
-
-                    // Rebond Haut/Bas
-                    if (piece.y <= 0 || piece.y + piece.drawHeight >= canvas.height) {
-                        piece.vy *= -1;
-                        piece.y = piece.y <= 0 ? 0 : canvas.height - piece.drawHeight;
-                    }
+            pieces.forEach(p => {
+                if (!p.fixed) {
+                    p.x += p.vx; p.y += p.vy;
+                    // Rebond murs
+                    if (p.x <= 0 || p.x + p.drawWidth >= canvas.width) p.vx *= -1;
+                    if (p.y <= 0 || p.y + p.drawHeight >= canvas.height) p.vy *= -1;
+                    
+                    ctx.drawImage(image, p.sourceX, p.sourceY, p.sourceWidth, p.sourceHeight, p.x, p.y, p.drawWidth, p.drawHeight);
+                    ctx.strokeStyle = "rgba(0, 255, 136, 0.4)";
+                    ctx.strokeRect(p.x, p.y, p.drawWidth, p.drawHeight);
+                } else {
+                    // Position fixe (interpolation fluide vers la cible)
+                    p.x += (p.targetX - p.x) * 0.2;
+                    p.y += (p.targetY - p.y) * 0.2;
+                    ctx.drawImage(image, p.sourceX, p.sourceY, p.sourceWidth, p.sourceHeight, p.x, p.y, p.drawWidth, p.drawHeight);
                 }
+            });
 
-                ctx.drawImage(
-                    image,
-                    piece.sourceX, piece.sourceY, piece.sourceWidth, piece.sourceHeight,
-                    piece.x, piece.y, piece.drawWidth, piece.drawHeight
-                );
+            skulls.forEach(s => {
+                s.x += s.vx; s.y += s.vy;
+                if (s.x <= 0 || s.x + s.drawWidth >= canvas.width) s.vx *= -1;
+                if (s.y <= 0 || s.y + s.drawHeight >= canvas.height) s.vy *= -1;
+
+                // Dessin tête de mort
+                ctx.fillStyle = "#222";
+                ctx.fillRect(s.x, s.y, s.drawWidth, s.drawHeight);
+                ctx.strokeStyle = "red";
+                ctx.strokeRect(s.x, s.y, s.drawWidth, s.drawHeight);
+                ctx.fillStyle = "white";
+                ctx.font = "bold 30px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText("💀", s.x + s.drawWidth/2, s.y + s.drawHeight/1.5);
             });
 
             requestAnimationFrame(animate);
         }
 
-        // Interaction Clic ou Tactile
         function handleInteraction(e) {
             const rect = canvas.getBoundingClientRect();
-            // Support Souris ou Toucher
             const clientX = e.clientX || (e.touches && e.touches[0].clientX);
             const clientY = e.clientY || (e.touches && e.touches[0].clientY);
-            
             const clickX = clientX - rect.left;
             const clickY = clientY - rect.top;
 
-            // On vérifie en partant de la fin pour cliquer sur la pièce "au dessus"
+            let hit = false;
+
+            // Touche une tête de mort ?
+            for (let s of skulls) {
+                if (clickX > s.x && clickX < s.x + s.drawWidth && clickY > s.y && clickY < s.y + s.drawHeight) {
+                    hit = true;
+                    // Détache tout !
+                    pieces.forEach(p => { 
+                        if(p.fixed) {
+                            p.fixed = false;
+                            p.vx = (Math.random() - 0.5) * 20;
+                            p.vy = (Math.random() - 0.5) * 20;
+                        }
+                    });
+                    canvas.style.borderColor = "red";
+                    updateCount();
+                    return;
+                }
+            }
+
+            // Touche une pièce ? (Priorité aux pièces mobiles)
             for (let i = pieces.length - 1; i >= 0; i--) {
                 const p = pieces[i];
-                if (clickX > p.x && clickX < p.x + p.drawWidth &&
-                    clickY > p.y && clickY < p.y + p.drawHeight) {
-                    p.moving = !p.moving;
-                    break; // Arrête après avoir touché une pièce
+                if (!p.fixed && clickX > p.x && clickX < p.x + p.drawWidth && clickY > p.y && clickY < p.y + p.drawHeight) {
+                    p.fixed = true;
+                    hit = true;
+                    updateCount();
+                    break;
                 }
+            }
+
+            // Malus clic vide
+            if (!hit) {
+                globalSpeedMult *= 1.2;
+                [...pieces.filter(p => !p.fixed), ...skulls].forEach(obj => {
+                    obj.vx *= 1.2;
+                    obj.vy *= 1.2;
+                });
+                canvas.style.borderColor = "#ff0055";
+                setTimeout(() => canvas.style.borderColor = "#333", 200);
+            }
+        }
+
+        function updateCount() {
+            const remaining = pieces.filter(p => !p.fixed).length;
+            countDisplay.textContent = remaining;
+            if (remaining === 0) {
+                setTimeout(() => alert("SYSTÈME RÉPARÉ !"), 100);
             }
         }
 
         canvas.addEventListener('mousedown', handleInteraction);
-        canvas.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            handleInteraction(e);
-        }, { passive: false });
-
-        window.addEventListener('resize', () => {
-            if (imageLoaded) initGame();
-        });
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleInteraction(e); }, { passive: false });
     </script>
 </body>
 </html>
