@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Puzzle Speed Challenge</title>
+    <title>Puzzle Tactique Mobile</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #050505; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; }
         canvas { border: 2px solid #222; background-color: #000; cursor: crosshair; }
@@ -12,7 +12,7 @@
     </style>
 </head>
 <body>
-    <div id="ui">💀: Détache tout | ⚡: Vitesse x2 | RESTANT: <span id="count">0</span></div>
+    <div id="ui">💀: Détache tout | ⚡: Vitesse x2 (usage unique) | RESTANT: <span id="count">0</span></div>
     <canvas id="gameCanvas"></canvas>
 
     <script>
@@ -23,8 +23,9 @@
         const image = new Image();
         image.src = 'Imprim.jpg'; 
         
+        // --- CONFIGURATION 15 PIÈCES (5x3) ---
         const COLS = 5;
-        const ROWS = 4;
+        const ROWS = 3;
         let pieces = [];
         let obstacles = [];
         let imageLoaded = false;
@@ -41,7 +42,7 @@
             
             const sw = image.width / COLS;
             const sh = image.height / ROWS;
-            const finalW = Math.min(canvas.width * 0.8, 800);
+            const finalW = Math.min(canvas.width * 0.85, 800);
             const finalH = (image.height * finalW) / image.width;
             const dw = finalW / COLS;
             const dh = finalH / ROWS;
@@ -56,8 +57,8 @@
                         y: Math.random() * (canvas.height - dh),
                         targetX: offsetX + (c * dw),
                         targetY: offsetY + (r * dh),
-                        vx: (Math.random() - 0.5) * 7,
-                        vy: (Math.random() - 0.5) * 7,
+                        vx: (Math.random() - 0.5) * 5, // Vitesse réduite
+                        vy: (Math.random() - 0.5) * 5,
                         fixed: false,
                         sourceX: c * sw, sourceY: r * sh,
                         sourceWidth: sw, sourceHeight: sh,
@@ -66,23 +67,26 @@
                 }
             }
 
+            // --- 4 SKULLS + 4 SPEED (TOTAL 8 OBSTACLES) ---
             obstacles = [];
-            for (let i = 0; i < 6; i++) {
+            for (let i = 0; i < 8; i++) {
                 obstacles.push({
                     x: Math.random() * (canvas.width - dw),
                     y: Math.random() * (canvas.height - dh),
-                    vx: (Math.random() - 0.5) * 10,
-                    vy: (Math.random() - 0.5) * 10,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 0.5) * 8,
                     drawWidth: dw,
                     drawHeight: dh,
-                    type: i < 3 ? 'skull' : 'speed'
+                    type: i < 4 ? 'skull' : 'speed',
+                    active: true
                 });
             }
             updateCount();
         }
 
         function checkCollisions() {
-            const active = [...pieces.filter(p => !p.fixed), ...obstacles];
+            const activeObstacles = obstacles.filter(o => o.active);
+            const active = [...pieces.filter(p => !p.fixed), ...activeObstacles];
             for (let i = 0; i < active.length; i++) {
                 for (let j = i + 1; j < active.length; j++) {
                     let a = active[i];
@@ -114,6 +118,7 @@
             });
 
             obstacles.forEach(o => {
+                if (!o.active) return;
                 o.x += o.vx; o.y += o.vy;
                 if (o.x <= 0 || o.x + o.drawWidth >= canvas.width) o.vx *= -1;
                 if (o.y <= 0 || o.y + o.drawHeight >= canvas.height) o.vy *= -1;
@@ -126,7 +131,6 @@
                 
                 ctx.font = "24px Arial";
                 ctx.textAlign = "center";
-                // Remplacement par l'éclair ici
                 ctx.fillText(o.type === 'skull' ? "💀" : "⚡", o.x + o.drawWidth/2, o.y + o.drawHeight/1.5);
             });
 
@@ -140,18 +144,21 @@
             const clickX = clientX - rect.left;
             const clickY = clientY - rect.top;
 
+            // Check Obstacles
             for (let o of obstacles) {
-                if (clickX > o.x && clickX < o.x + o.drawWidth && clickY > o.y && clickY < o.y + o.drawHeight) {
+                if (o.active && clickX > o.x && clickX < o.x + o.drawWidth && clickY > o.y && clickY < o.y + o.drawHeight) {
                     if (o.type === 'skull') {
                         pieces.forEach(p => { if(p.fixed) { p.fixed = false; p.vx *= 1.2; p.vy *= 1.2; } });
                     } else {
-                        // Accélération ⚡
-                        [...pieces.filter(p => !p.fixed), ...obstacles].forEach(el => { el.vx *= 2; el.vy *= 2; });
+                        // Accélération + Suppression de la case éclair
+                        o.active = false;
+                        [...pieces.filter(p => !p.fixed), ...obstacles.filter(ob => ob.active)].forEach(el => { el.vx *= 2; el.vy *= 2; });
                     }
                     return;
                 }
             }
 
+            // Check Pièces
             for (let i = pieces.length - 1; i >= 0; i--) {
                 const p = pieces[i];
                 if (!p.fixed && clickX > p.x && clickX < p.x + p.drawWidth && clickY > p.y && clickY < p.y + p.drawHeight) {
@@ -165,6 +172,7 @@
         function updateCount() {
             const remaining = pieces.filter(p => !p.fixed).length;
             countDisplay.textContent = remaining;
+            if (remaining === 0) alert("RÉPARÉ !");
         }
 
         canvas.addEventListener('mousedown', handleInteraction);
