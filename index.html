@@ -3,32 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Puzzle 12 - Hardcore Toggle</title>
+    <title>Puzzle Smartphone Pro</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #050505; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; }
-        canvas { border: 2px solid #222; background-color: #000; cursor: crosshair; transition: transform 0.1s, border-color 0.2s; }
-        #ui { color: #888; font-size: 11px; letter-spacing: 1px; margin-bottom: 5px; text-align: center; pointer-events: none; }
-        #count { color: #00ff88; font-weight: bold; font-size: 14px; }
+        canvas { border: 2px solid #333; background-color: #000; cursor: crosshair; transition: transform 0.1s; border-radius: 5px; }
+        #ui { color: #888; font-size: 10px; letter-spacing: 1px; margin-bottom: 8px; text-align: center; pointer-events: none; width: 90%; }
+        #count { color: #00ff88; font-weight: bold; font-size: 12px; }
         
-        /* Classes pour les effets visuels */
+        /* Animations d'impact */
         .flash-red { animation: flashRed 0.4s ease-out; }
         .flash-yellow { animation: flashYellow 0.4s ease-out; }
         .shake { animation: shake 0.3s; }
 
-        @keyframes flashRed { 0% { background-color: #ff0000; } 100% { background-color: #050505; } }
-        @keyframes flashYellow { 0% { background-color: #fbff00; } 100% { background-color: #050505; } }
+        @keyframes flashRed { 0% { background-color: #400; } 100% { background-color: #050505; } }
+        @keyframes flashYellow { 0% { background-color: #440; } 100% { background-color: #050505; } }
         @keyframes shake {
-            0% { transform: translate(1px, 1px) rotate(0deg); }
-            20% { transform: translate(-3px, 0px) rotate(-1deg); }
-            40% { transform: translate(3px, 2px) rotate(1deg); }
-            60% { transform: translate(-3px, 1px) rotate(0deg); }
-            80% { transform: translate(3px, 1px) rotate(-1deg); }
-            100% { transform: translate(1px, -2px) rotate(0deg); }
+            0%, 100% { transform: translate(0, 0); }
+            25% { transform: translate(-4px, 2px); }
+            75% { transform: translate(4px, -2px); }
         }
     </style>
 </head>
 <body>
-    <div id="ui">💀: Détache | ⚡: Vitesse x2 | RESTANT: <span id="count">0</span></div>
+    <div id="ui">💀: Détache | ⚡: Vitesse x2 | FIXÉES: <span id="count">0</span>/12</div>
     <canvas id="gameCanvas"></canvas>
 
     <script>
@@ -39,7 +36,6 @@
         const image = new Image();
         image.src = 'Imprim.jpg'; 
         
-        // --- CONFIGURATION 12 PIÈCES (4x3) ---
         const COLS = 4;
         const ROWS = 3;
         let pieces = [];
@@ -53,17 +49,32 @@
         };
 
         function initGame() {
-            canvas.width = window.innerWidth * 0.95;
-            canvas.height = window.innerHeight * 0.85;
+            // Adaptation à la taille réelle du smartphone
+            const margin = 20;
+            const availableW = window.innerWidth - margin;
+            const availableH = window.innerHeight * 0.8; // Laisse de la place pour l'UI
             
-            const sw = image.width / COLS;
-            const sh = image.height / ROWS;
-            const finalW = Math.min(canvas.width * 0.9, 800);
-            const finalH = (image.height * finalW) / image.width;
+            // Calcul du ratio pour ne pas déformer l'image
+            const imgRatio = image.width / image.height;
+            let finalW = availableW;
+            let finalH = finalW / imgRatio;
+
+            if (finalH > availableH) {
+                finalH = availableH;
+                finalW = finalH * imgRatio;
+            }
+
+            canvas.width = availableW;
+            canvas.height = availableH;
+
             const dw = finalW / COLS;
             const dh = finalH / ROWS;
             const offsetX = (canvas.width - finalW) / 2;
             const offsetY = (canvas.height - finalH) / 2;
+
+            // Découpage de l'image source
+            const sw = image.width / COLS;
+            const sh = image.height / ROWS;
 
             pieces = [];
             for (let r = 0; r < ROWS; r++) {
@@ -73,12 +84,12 @@
                         y: Math.random() * (canvas.height - dh),
                         targetX: offsetX + (c * dw),
                         targetY: offsetY + (r * dh),
-                        vx: (Math.random() - 0.5) * 5,
-                        vy: (Math.random() - 0.5) * 5,
+                        vx: (Math.random() - 0.5) * 4,
+                        vy: (Math.random() - 0.5) * 4,
                         fixed: false,
                         sourceX: c * sw, sourceY: r * sh,
-                        sourceWidth: sw, sourceHeight: sh,
-                        drawWidth: dw, drawHeight: dh
+                        sourceW: sw, sourceH: sh,
+                        drawW: dw, drawH: dh
                     });
                 }
             }
@@ -88,10 +99,9 @@
                 obstacles.push({
                     x: Math.random() * (canvas.width - dw),
                     y: Math.random() * (canvas.height - dh),
-                    vx: (Math.random() - 0.5) * 8,
-                    vy: (Math.random() - 0.5) * 8,
-                    drawWidth: dw,
-                    drawHeight: dh,
+                    vx: (Math.random() - 0.5) * 6,
+                    vy: (Math.random() - 0.5) * 6,
+                    drawW: dw, drawH: dh,
                     type: i < 4 ? 'skull' : 'speed',
                     active: true
                 });
@@ -102,29 +112,22 @@
         function triggerEffect(type) {
             document.body.classList.remove('flash-red', 'flash-yellow');
             canvas.classList.remove('shake');
-            
-            // Forcer le redémarrage de l'animation
             void document.body.offsetWidth; 
-            
             if (type === 'skull') {
                 document.body.classList.add('flash-red');
                 canvas.classList.add('shake');
-                canvas.style.borderColor = "red";
-            } else if (type === 'speed') {
+            } else {
                 document.body.classList.add('flash-yellow');
-                canvas.style.borderColor = "yellow";
             }
-            setTimeout(() => canvas.style.borderColor = "#222", 500);
         }
 
         function checkCollisions() {
-            const activeObstacles = obstacles.filter(o => o.active);
-            const active = [...pieces.filter(p => !p.fixed), ...activeObstacles];
+            const activeObs = obstacles.filter(o => o.active);
+            const active = [...pieces.filter(p => !p.fixed), ...activeObs];
             for (let i = 0; i < active.length; i++) {
                 for (let j = i + 1; j < active.length; j++) {
-                    let a = active[i];
-                    let b = active[j];
-                    if (Math.abs(a.x - b.x) < a.drawWidth && Math.abs(a.y - b.y) < a.drawHeight) {
+                    let a = active[i], b = active[j];
+                    if (Math.abs(a.x - b.x) < a.drawW && Math.abs(a.y - b.y) < a.drawH) {
                         [a.vx, b.vx] = [b.vx, a.vx];
                         [a.vy, b.vy] = [b.vy, a.vy];
                         a.x += a.vx; a.y += a.vy;
@@ -140,34 +143,32 @@
             pieces.forEach(p => {
                 if (!p.fixed) {
                     p.x += p.vx; p.y += p.vy;
-                    if (p.x <= 0 || p.x + p.drawWidth >= canvas.width) p.vx *= -1;
-                    if (p.y <= 0 || p.y + p.drawHeight >= canvas.height) p.vy *= -1;
+                    if (p.x <= 0 || p.x + p.drawW >= canvas.width) p.vx *= -1;
+                    if (p.y <= 0 || p.y + p.drawH >= canvas.height) p.vy *= -1;
                 } else {
                     p.x += (p.targetX - p.x) * 0.2;
                     p.y += (p.targetY - p.y) * 0.2;
                 }
-                ctx.drawImage(image, p.sourceX, p.sourceY, p.sourceWidth, p.sourceHeight, p.x, p.y, p.drawWidth, p.drawHeight);
+                ctx.drawImage(image, p.sourceX, p.sourceY, p.sourceW, p.sourceH, p.x, p.y, p.drawW, p.drawH);
                 if (!p.fixed) {
-                    ctx.strokeStyle = "rgba(0, 255, 136, 0.3)";
-                    ctx.strokeRect(p.x, p.y, p.drawWidth, p.drawHeight);
+                    ctx.strokeStyle = "rgba(255,255,255,0.2)";
+                    ctx.strokeRect(p.x, p.y, p.drawW, p.drawH);
                 }
             });
 
             obstacles.forEach(o => {
                 if (!o.active) return;
                 o.x += o.vx; o.y += o.vy;
-                if (o.x <= 0 || o.x + o.drawWidth >= canvas.width) o.vx *= -1;
-                if (o.y <= 0 || o.y + o.drawHeight >= canvas.height) o.vy *= -1;
-
+                if (o.x <= 0 || o.x + o.drawW >= canvas.width) o.vx *= -1;
+                if (o.y <= 0 || o.y + o.drawH >= canvas.height) o.vy *= -1;
                 ctx.fillStyle = "#111";
-                ctx.fillRect(o.x, o.y, o.drawWidth, o.drawHeight);
+                ctx.fillRect(o.x, o.y, o.drawW, o.drawH);
                 ctx.strokeStyle = o.type === 'skull' ? "red" : "yellow";
-                ctx.strokeRect(o.x, o.y, o.drawWidth, o.drawHeight);
-                ctx.font = "24px Arial";
+                ctx.strokeRect(o.x, o.y, o.drawW, o.drawH);
+                ctx.font = "20px Arial";
                 ctx.textAlign = "center";
-                ctx.fillText(o.type === 'skull' ? "💀" : "⚡", o.x + o.drawWidth/2, o.y + o.drawHeight/1.5);
+                ctx.fillText(o.type === 'skull' ? "💀" : "⚡", o.x + o.drawW/2, o.y + o.drawH/1.5);
             });
-
             requestAnimationFrame(animate);
         }
 
@@ -178,44 +179,37 @@
             const clickX = clientX - rect.left;
             const clickY = clientY - rect.top;
 
-            // 1. Check Obstacles
             for (let o of obstacles) {
-                if (o.active && clickX > o.x && clickX < o.x + o.drawWidth && clickY > o.y && clickY < o.y + o.drawHeight) {
+                if (o.active && clickX > o.x && clickX < o.x + o.drawW && clickY > o.y && clickY < o.y + o.drawH) {
                     if (o.type === 'skull') {
                         triggerEffect('skull');
-                        pieces.forEach(p => { if(p.fixed) { p.fixed = false; p.vx = (Math.random()-0.5)*15; p.vy = (Math.random()-0.5)*15; } });
+                        pieces.forEach(p => { if(p.fixed) { p.fixed = false; p.vx = (Math.random()-0.5)*12; p.vy = (Math.random()-0.5)*12; } });
                     } else {
                         triggerEffect('speed');
                         o.active = false;
                         [...pieces.filter(p => !p.fixed), ...obstacles.filter(ob => ob.active)].forEach(el => { el.vx *= 2; el.vy *= 2; });
                     }
-                    updateCount();
-                    return;
+                    updateCount(); return;
                 }
             }
 
-            // 2. Check Pièces (Toggle: Fixe ou Détache)
             for (let i = pieces.length - 1; i >= 0; i--) {
                 const p = pieces[i];
-                if (clickX > p.x && clickX < p.x + p.drawWidth && clickY > p.y && clickY < p.y + p.drawHeight) {
-                    p.fixed = !p.fixed; // Si c'est fixe ça bouge, si ça bouge ça devient fixe
-                    if (!p.fixed) { // Si on vient de détacher, on donne une impulsion
-                        p.vx = (Math.random() - 0.5) * 10;
-                        p.vy = (Math.random() - 0.5) * 10;
-                    }
-                    updateCount();
-                    break;
+                if (clickX > p.x && clickX < p.x + p.drawW && clickY > p.y && clickY < p.y + p.drawH) {
+                    p.fixed = !p.fixed;
+                    if (!p.fixed) { p.vx = (Math.random()-0.5)*8; p.vy = (Math.random()-0.5)*8; }
+                    updateCount(); break;
                 }
             }
         }
 
         function updateCount() {
-            const remaining = pieces.filter(p => !p.fixed).length;
-            countDisplay.textContent = remaining;
+            countDisplay.textContent = pieces.filter(p => p.fixed).length;
         }
 
         canvas.addEventListener('mousedown', handleInteraction);
         canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleInteraction(e); }, { passive: false });
+        window.addEventListener('resize', initGame);
     </script>
 </body>
 </html>
