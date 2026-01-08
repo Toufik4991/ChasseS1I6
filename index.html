@@ -3,16 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Puzzle Tactique Mobile</title>
+    <title>Puzzle 12 - Hardcore Toggle</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #050505; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; }
-        canvas { border: 2px solid #222; background-color: #000; cursor: crosshair; }
-        #ui { color: #666; font-size: 11px; letter-spacing: 1px; margin-bottom: 5px; text-align: center; pointer-events: none; }
-        #count { color: #00ff88; font-weight: bold; }
+        canvas { border: 2px solid #222; background-color: #000; cursor: crosshair; transition: transform 0.1s, border-color 0.2s; }
+        #ui { color: #888; font-size: 11px; letter-spacing: 1px; margin-bottom: 5px; text-align: center; pointer-events: none; }
+        #count { color: #00ff88; font-weight: bold; font-size: 14px; }
+        
+        /* Classes pour les effets visuels */
+        .flash-red { animation: flashRed 0.4s ease-out; }
+        .flash-yellow { animation: flashYellow 0.4s ease-out; }
+        .shake { animation: shake 0.3s; }
+
+        @keyframes flashRed { 0% { background-color: #ff0000; } 100% { background-color: #050505; } }
+        @keyframes flashYellow { 0% { background-color: #fbff00; } 100% { background-color: #050505; } }
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            20% { transform: translate(-3px, 0px) rotate(-1deg); }
+            40% { transform: translate(3px, 2px) rotate(1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            80% { transform: translate(3px, 1px) rotate(-1deg); }
+            100% { transform: translate(1px, -2px) rotate(0deg); }
+        }
     </style>
 </head>
 <body>
-    <div id="ui">💀: Détache tout | ⚡: Vitesse x2 (usage unique) | RESTANT: <span id="count">0</span></div>
+    <div id="ui">💀: Détache | ⚡: Vitesse x2 | RESTANT: <span id="count">0</span></div>
     <canvas id="gameCanvas"></canvas>
 
     <script>
@@ -23,8 +39,8 @@
         const image = new Image();
         image.src = 'Imprim.jpg'; 
         
-        // --- CONFIGURATION 15 PIÈCES (5x3) ---
-        const COLS = 5;
+        // --- CONFIGURATION 12 PIÈCES (4x3) ---
+        const COLS = 4;
         const ROWS = 3;
         let pieces = [];
         let obstacles = [];
@@ -42,7 +58,7 @@
             
             const sw = image.width / COLS;
             const sh = image.height / ROWS;
-            const finalW = Math.min(canvas.width * 0.85, 800);
+            const finalW = Math.min(canvas.width * 0.9, 800);
             const finalH = (image.height * finalW) / image.width;
             const dw = finalW / COLS;
             const dh = finalH / ROWS;
@@ -57,7 +73,7 @@
                         y: Math.random() * (canvas.height - dh),
                         targetX: offsetX + (c * dw),
                         targetY: offsetY + (r * dh),
-                        vx: (Math.random() - 0.5) * 5, // Vitesse réduite
+                        vx: (Math.random() - 0.5) * 5,
                         vy: (Math.random() - 0.5) * 5,
                         fixed: false,
                         sourceX: c * sw, sourceY: r * sh,
@@ -67,7 +83,6 @@
                 }
             }
 
-            // --- 4 SKULLS + 4 SPEED (TOTAL 8 OBSTACLES) ---
             obstacles = [];
             for (let i = 0; i < 8; i++) {
                 obstacles.push({
@@ -82,6 +97,24 @@
                 });
             }
             updateCount();
+        }
+
+        function triggerEffect(type) {
+            document.body.classList.remove('flash-red', 'flash-yellow');
+            canvas.classList.remove('shake');
+            
+            // Forcer le redémarrage de l'animation
+            void document.body.offsetWidth; 
+            
+            if (type === 'skull') {
+                document.body.classList.add('flash-red');
+                canvas.classList.add('shake');
+                canvas.style.borderColor = "red";
+            } else if (type === 'speed') {
+                document.body.classList.add('flash-yellow');
+                canvas.style.borderColor = "yellow";
+            }
+            setTimeout(() => canvas.style.borderColor = "#222", 500);
         }
 
         function checkCollisions() {
@@ -109,11 +142,14 @@
                     p.x += p.vx; p.y += p.vy;
                     if (p.x <= 0 || p.x + p.drawWidth >= canvas.width) p.vx *= -1;
                     if (p.y <= 0 || p.y + p.drawHeight >= canvas.height) p.vy *= -1;
-                    ctx.drawImage(image, p.sourceX, p.sourceY, p.sourceWidth, p.sourceHeight, p.x, p.y, p.drawWidth, p.drawHeight);
                 } else {
                     p.x += (p.targetX - p.x) * 0.2;
                     p.y += (p.targetY - p.y) * 0.2;
-                    ctx.drawImage(image, p.sourceX, p.sourceY, p.sourceWidth, p.sourceHeight, p.x, p.y, p.drawWidth, p.drawHeight);
+                }
+                ctx.drawImage(image, p.sourceX, p.sourceY, p.sourceWidth, p.sourceHeight, p.x, p.y, p.drawWidth, p.drawHeight);
+                if (!p.fixed) {
+                    ctx.strokeStyle = "rgba(0, 255, 136, 0.3)";
+                    ctx.strokeRect(p.x, p.y, p.drawWidth, p.drawHeight);
                 }
             });
 
@@ -125,10 +161,8 @@
 
                 ctx.fillStyle = "#111";
                 ctx.fillRect(o.x, o.y, o.drawWidth, o.drawHeight);
-                ctx.strokeStyle = o.type === 'skull' ? "#ff0055" : "#ffdd00";
-                ctx.lineWidth = 2;
+                ctx.strokeStyle = o.type === 'skull' ? "red" : "yellow";
                 ctx.strokeRect(o.x, o.y, o.drawWidth, o.drawHeight);
-                
                 ctx.font = "24px Arial";
                 ctx.textAlign = "center";
                 ctx.fillText(o.type === 'skull' ? "💀" : "⚡", o.x + o.drawWidth/2, o.y + o.drawHeight/1.5);
@@ -144,25 +178,31 @@
             const clickX = clientX - rect.left;
             const clickY = clientY - rect.top;
 
-            // Check Obstacles
+            // 1. Check Obstacles
             for (let o of obstacles) {
                 if (o.active && clickX > o.x && clickX < o.x + o.drawWidth && clickY > o.y && clickY < o.y + o.drawHeight) {
                     if (o.type === 'skull') {
-                        pieces.forEach(p => { if(p.fixed) { p.fixed = false; p.vx *= 1.2; p.vy *= 1.2; } });
+                        triggerEffect('skull');
+                        pieces.forEach(p => { if(p.fixed) { p.fixed = false; p.vx = (Math.random()-0.5)*15; p.vy = (Math.random()-0.5)*15; } });
                     } else {
-                        // Accélération + Suppression de la case éclair
+                        triggerEffect('speed');
                         o.active = false;
                         [...pieces.filter(p => !p.fixed), ...obstacles.filter(ob => ob.active)].forEach(el => { el.vx *= 2; el.vy *= 2; });
                     }
+                    updateCount();
                     return;
                 }
             }
 
-            // Check Pièces
+            // 2. Check Pièces (Toggle: Fixe ou Détache)
             for (let i = pieces.length - 1; i >= 0; i--) {
                 const p = pieces[i];
-                if (!p.fixed && clickX > p.x && clickX < p.x + p.drawWidth && clickY > p.y && clickY < p.y + p.drawHeight) {
-                    p.fixed = true;
+                if (clickX > p.x && clickX < p.x + p.drawWidth && clickY > p.y && clickY < p.y + p.drawHeight) {
+                    p.fixed = !p.fixed; // Si c'est fixe ça bouge, si ça bouge ça devient fixe
+                    if (!p.fixed) { // Si on vient de détacher, on donne une impulsion
+                        p.vx = (Math.random() - 0.5) * 10;
+                        p.vy = (Math.random() - 0.5) * 10;
+                    }
                     updateCount();
                     break;
                 }
@@ -172,7 +212,6 @@
         function updateCount() {
             const remaining = pieces.filter(p => !p.fixed).length;
             countDisplay.textContent = remaining;
-            if (remaining === 0) alert("RÉPARÉ !");
         }
 
         canvas.addEventListener('mousedown', handleInteraction);
