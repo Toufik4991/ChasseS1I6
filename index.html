@@ -10,12 +10,16 @@
         #ui { color: #888; font-size: 11px; margin-bottom: 8px; text-align: center; pointer-events: none; text-transform: uppercase; }
         #count { color: #00ff88; font-weight: bold; font-size: 14px; }
         #speed-timer { color: #ffdd00; font-weight: bold; display: none; margin-left: 10px; }
+        
         #victory {
             display: none; position: absolute; top: 50%; left: 50%;
-            transform: translate(-50%, -50%); background: rgba(0, 255, 136, 0.9);
-            color: #000; padding: 25px 50px; border-radius: 15px;
-            text-align: center; font-size: 28px; font-weight: bold; z-index: 100;
+            transform: translate(-50%, -50%); background: rgba(255, 255, 255, 0.9);
+            padding: 20px; border-radius: 50%;
+            text-align: center; font-size: 60px; z-index: 100;
+            box-shadow: 0 0 40px rgba(255, 221, 0, 0.6);
+            line-height: 1;
         }
+
         .flash-red { animation: flashRed 0.3s; }
         @keyframes flashRed { 0% { background-color: #600; } 100% { background-color: #050505; } }
     </style>
@@ -26,7 +30,7 @@
         <span id="speed-timer">BOOST: <span id="seconds">30</span>s</span>
     </div>
     <canvas id="gameCanvas"></canvas>
-    <div id="victory">IMAGE RÉVÉLÉE ! 🏆</div>
+    <div id="victory">☀️</div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
@@ -96,13 +100,13 @@
         function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // 1. D'abord on dessine les pièces FIXÉES (en dessous)
+            // 1. Pièces FIXÉES (couche inférieure)
             pieces.filter(p => p.fixed).forEach(p => {
                 p.x += (p.targetX - p.x) * 0.2; p.y += (p.targetY - p.y) * 0.2;
                 drawPiece(p);
             });
 
-            // 2. Ensuite on dessine les pièces FLOTTANTES (par-dessus)
+            // 2. Pièces FLOTTANTES (couche supérieure)
             if (!gameFinished) {
                 pieces.filter(p => !p.fixed).forEach(p => {
                     p.x += p.vx; p.y += p.vy;
@@ -111,7 +115,7 @@
                     drawPiece(p);
                 });
 
-                // 3. Dessin des Obstacles (toujours au premier plan)
+                // 3. Obstacles (premier plan)
                 obstacles.forEach(o => {
                     if (!o.active) return;
                     o.x += o.vx; o.y += o.vy;
@@ -119,12 +123,11 @@
                     if (o.y < gameBounds.y || o.y + o.drawH > gameBounds.y + gameBounds.h) o.vy *= -1;
                     ctx.fillStyle = "#111";
                     ctx.fillRect(o.x, o.y, o.drawW, o.drawH);
-                    ctx.font = "28px Arial"; // Plus grand
+                    ctx.font = "28px Arial";
                     ctx.textAlign = "center";
                     ctx.fillText(o.type === 'skull' ? "💀" : "⚡", o.x + o.drawW/2, o.y + o.drawH/1.3);
                 });
             } else {
-                // Si fini, on redessine tout proprement pour éviter les trous
                 pieces.forEach(drawPiece);
             }
 
@@ -138,7 +141,6 @@
             const clientY = e.clientY || (e.touches && e.touches[0].clientY);
             const clickX = clientX - rect.left, clickY = clientY - rect.top;
 
-            // Collision Obstacles
             obstacles.forEach(o => {
                 if (o.active && clickX > o.x && clickX < o.x + o.drawW && clickY > o.y && clickY < o.y + o.drawH) {
                     if (o.type === 'skull') {
@@ -153,7 +155,6 @@
                 }
             });
 
-            // Collision Pièces (en priorité les flottantes car elles sont dessus)
             let pClicked = pieces.filter(p => !p.fixed).find(p => clickX > p.x && clickX < p.x + p.drawW*0.5 && clickY > p.y && clickY < p.y + p.drawH*0.5);
             if (!pClicked) {
                 pClicked = pieces.filter(p => p.fixed).find(p => clickX > p.x && clickX < p.x + p.drawW && clickY > p.y && clickY < p.y + p.drawH);
