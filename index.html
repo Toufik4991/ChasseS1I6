@@ -3,34 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Puzzle Zoom & Speed Timer</title>
+    <title>Puzzle Mystère - Chasse au Trésor</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #050505; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; }
         canvas { background-color: #000; cursor: crosshair; touch-action: none; border: 1px solid #222; }
-        #ui { color: #666; font-size: 10px; margin-bottom: 5px; text-align: center; pointer-events: none; }
-        #count { color: #00ff88; font-weight: bold; }
+        #ui { color: #666; font-size: 11px; margin-bottom: 8px; text-align: center; pointer-events: none; text-transform: uppercase; letter-spacing: 1px; }
+        #count { color: #00ff88; font-weight: bold; font-size: 14px; }
         #speed-timer { color: #ffdd00; font-weight: bold; display: none; margin-left: 10px; }
         
         #victory {
             display: none; position: absolute; top: 50%; left: 50%;
-            transform: translate(-50%, -50%); background: rgba(0, 255, 136, 0.95);
-            color: #000; padding: 20px 40px; border-radius: 50px;
-            text-align: center; font-size: 24px; font-weight: bold; z-index: 100;
+            transform: translate(-50%, -50%); background: rgba(0, 255, 136, 0.9);
+            color: #000; padding: 25px 50px; border-radius: 15px;
+            text-align: center; font-size: 28px; font-weight: bold; z-index: 100;
+            box-shadow: 0 0 30px rgba(0,255,136,0.5);
         }
 
         .flash-red { animation: flashRed 0.3s; }
         .flash-yellow { animation: flashYellow 0.3s; }
-        @keyframes flashRed { 0% { background-color: #500; } 100% { background-color: #050505; } }
-        @keyframes flashYellow { 0% { background-color: #550; } 100% { background-color: #050505; } }
+        @keyframes flashRed { 0% { background-color: #600; } 100% { background-color: #050505; } }
+        @keyframes flashYellow { 0% { background-color: #660; } 100% { background-color: #050505; } }
     </style>
 </head>
 <body>
     <div id="ui">
-        💀: Détache | ⚡: Vitesse x2 (30s) | PROGRÈS: <span id="count">0</span>/18
+        💀 Reset | ⚡ Boost | PROGRÈS: <span id="count">0</span>/18
         <span id="speed-timer">BOOST: <span id="seconds">30</span>s</span>
     </div>
     <canvas id="gameCanvas"></canvas>
-    <div id="victory">VICTOIRE ! 😺</div>
+    <div id="victory">IMAGE RÉVÉLÉE ! 🏆</div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
@@ -54,9 +55,9 @@
 
         function initGame() {
             canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight * 0.9;
+            canvas.height = window.innerHeight * 0.85;
             const imgRatio = image.width / image.height;
-            let pW = canvas.width * 0.95, pH = pW / imgRatio;
+            let pW = canvas.width * 0.9, pH = pW / imgRatio;
             if (pH > canvas.height * 0.8) { pH = canvas.height * 0.8; pW = pH * imgRatio; }
             gameBounds = { x: (canvas.width - pW) / 2, y: (canvas.height - pH) / 2, w: pW, h: pH };
 
@@ -66,24 +67,27 @@
             pieces = [];
             for (let r = 0; r < ROWS; r++) {
                 for (let c = 0; c < COLS; c++) {
+                    // On génère une couleur aléatoire par morceau pour le mode "caché"
+                    const randomColor = `hsl(${Math.random() * 360}, 50%, 40%)`;
                     pieces.push({
-                        x: gameBounds.x + Math.random() * (gameBounds.w - dw/2),
-                        y: gameBounds.y + Math.random() * (gameBounds.h - dh/2),
+                        x: gameBounds.x + Math.random() * (gameBounds.w - dw),
+                        y: gameBounds.y + Math.random() * (gameBounds.h - dh),
                         targetX: gameBounds.x + (c * dw), targetY: gameBounds.y + (r * dh),
                         vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.5) * 4,
                         fixed: false, sourceX: c * sw, sourceY: r * sh,
-                        sourceW: sw, sourceH: sh, drawW: dw, drawH: dh
+                        sourceW: sw, sourceH: sh, drawW: dw, drawH: dh,
+                        color: randomColor
                     });
                 }
             }
 
             obstacles = [];
-            for (let i = 0; i < 8; i++) {
+            for (let i = 0; i < 6; i++) {
                 obstacles.push({
-                    x: gameBounds.x + Math.random() * (gameBounds.w - dw/2),
-                    y: gameBounds.y + Math.random() * (gameBounds.h - dh/2),
-                    vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6,
-                    drawW: dw / 2, drawH: dh / 2, type: i < 6 ? 'skull' : 'speed', active: true
+                    x: gameBounds.x + Math.random() * (gameBounds.w - 30),
+                    y: gameBounds.y + Math.random() * (gameBounds.h - 30),
+                    vx: (Math.random() - 0.5) * 5, vy: (Math.random() - 0.5) * 5,
+                    drawW: 30, drawH: 30, type: i < 4 ? 'skull' : 'speed', active: true
                 });
             }
         }
@@ -92,66 +96,60 @@
             if (boostTimer) clearInterval(boostTimer);
             timeLeft = 30;
             speedTimerUI.style.display = "inline";
-            secondsDisplay.textContent = timeLeft;
-
             boostTimer = setInterval(() => {
                 timeLeft--;
                 secondsDisplay.textContent = timeLeft;
                 if (timeLeft <= 0) {
                     clearInterval(boostTimer);
                     speedTimerUI.style.display = "none";
-                    // Retour à la vitesse normale
-                    [...pieces.filter(p => !p.fixed), ...obstacles].forEach(el => {
-                        el.vx /= 2; el.vy /= 2;
-                    });
                 }
             }, 1000);
         }
 
-        function resolveCollisions() {
-            if (gameFinished) return;
-            const activeObs = obstacles.filter(o => o.active);
-            const active = [...pieces.filter(p => !p.fixed), ...activeObs];
-            active.forEach((a, i) => {
-                if (a.x <= gameBounds.x) { a.x = gameBounds.x; a.vx *= -1; }
-                if (a.x + a.drawW/2 >= gameBounds.x + gameBounds.w) { a.x = gameBounds.x + gameBounds.w - a.drawW/2; a.vx *= -1; }
-                if (a.y <= gameBounds.y) { a.y = gameBounds.y; a.vy *= -1; }
-                if (a.y + a.drawH/2 >= gameBounds.y + gameBounds.h) { a.y = gameBounds.y + gameBounds.h - a.drawH/2; a.vy *= -1; }
-                for (let j = i + 1; j < active.length; j++) {
-                    let b = active[j];
-                    let aw = a.drawW/2, ah = a.drawH/2, bw = b.drawW/2, bh = b.drawH/2;
-                    if (a.x < b.x + bw && a.x + aw > b.x && a.y < b.y + bh && a.y + ah > b.y) {
-                        [a.vx, b.vx] = [b.vx, a.vx]; [a.vy, b.vy] = [b.vy, a.vy];
-                        a.x += a.vx; a.y += a.vy; 
-                    }
-                }
-            });
-        }
-
         function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            resolveCollisions();
-            pieces.filter(p => p.fixed).forEach(p => {
-                p.x += (p.targetX - p.x) * 0.2; p.y += (p.targetY - p.y) * 0.2;
-                ctx.drawImage(image, p.sourceX, p.sourceY, p.sourceW, p.sourceH, p.x, p.y, p.drawW, p.drawH);
+            
+            // Dessiner les limites du jeu
+            ctx.strokeStyle = "#222";
+            ctx.strokeRect(gameBounds.x, gameBounds.y, gameBounds.w, gameBounds.h);
+
+            pieces.forEach(p => {
+                if (!p.fixed && !gameFinished) {
+                    p.x += p.vx; p.y += p.vy;
+                    // Rebond sur les bords
+                    if (p.x < gameBounds.x || p.x + p.drawW/2 > gameBounds.x + gameBounds.w) p.vx *= -1;
+                    if (p.y < gameBounds.y || p.y + p.drawH/2 > gameBounds.y + gameBounds.h) p.vy *= -1;
+                } else if (p.fixed) {
+                    p.x += (p.targetX - p.x) * 0.2; p.y += (p.targetY - p.y) * 0.2;
+                }
+
+                if (gameFinished) {
+                    // IMAGE RÉVÉLÉE
+                    ctx.drawImage(image, p.sourceX, p.sourceY, p.sourceW, p.sourceH, p.x, p.y, p.drawW, p.drawH);
+                } else {
+                    // MODE CACHÉ : Rectangle de couleur
+                    ctx.fillStyle = p.color;
+                    const s = p.fixed ? 1 : 0.5; // Plus petit quand il vole
+                    ctx.fillRect(p.x, p.y, p.drawW * s, p.drawH * s);
+                    ctx.strokeStyle = "rgba(255,255,255,0.2)";
+                    ctx.strokeRect(p.x, p.y, p.drawW * s, p.drawH * s);
+                }
             });
-            pieces.filter(p => !p.fixed).forEach(p => {
-                p.x += p.vx; p.y += p.vy;
-                ctx.drawImage(image, p.sourceX, p.sourceY, p.sourceW, p.sourceH, p.x, p.y, p.drawW/2, p.drawH/2);
-                ctx.strokeStyle = "rgba(0,255,136,0.5)";
-                ctx.strokeRect(p.x, p.y, p.drawW/2, p.drawH/2);
-            });
+
             if (!gameFinished) {
                 obstacles.forEach(o => {
                     if (!o.active) return;
                     o.x += o.vx; o.y += o.vy;
-                    ctx.fillStyle = "#111"; ctx.fillRect(o.x, o.y, o.drawW, o.drawH);
-                    ctx.strokeStyle = o.type === 'skull' ? "red" : "yellow";
-                    ctx.strokeRect(o.x, o.y, o.drawW, o.drawH);
-                    ctx.font = "12px Arial"; ctx.textAlign = "center";
-                    ctx.fillText(o.type === 'skull' ? "💀" : "⚡", o.x + o.drawW/2, o.y + o.drawH/1.4);
+                    if (o.x < gameBounds.x || o.x + o.drawW > gameBounds.x + gameBounds.w) o.vx *= -1;
+                    if (o.y < gameBounds.y || o.y + o.drawH > gameBounds.y + gameBounds.h) o.vy *= -1;
+                    
+                    ctx.fillStyle = "#111";
+                    ctx.fillRect(o.x, o.y, o.drawW, o.drawH);
+                    ctx.font = "16px Arial";
+                    ctx.fillText(o.type === 'skull' ? "💀" : "⚡", o.x + 5, o.y + 22);
                 });
             }
+
             requestAnimationFrame(animate);
         }
 
@@ -162,27 +160,32 @@
             const clientY = e.clientY || (e.touches && e.touches[0].clientY);
             const clickX = clientX - rect.left, clickY = clientY - rect.top;
 
-            for (let o of obstacles) {
+            // Collision Obstacles
+            obstacles.forEach(o => {
                 if (o.active && clickX > o.x && clickX < o.x + o.drawW && clickY > o.y && clickY < o.y + o.drawH) {
                     if (o.type === 'skull') {
-                        document.body.classList.add('flash-red'); setTimeout(() => document.body.classList.remove('flash-red'), 300);
-                        pieces.forEach(p => { p.fixed = false; p.vx *= 1.2; p.vy *= 1.2; });
+                        document.body.classList.add('flash-red');
+                        setTimeout(() => document.body.classList.remove('flash-red'), 300);
+                        pieces.forEach(p => p.fixed = false);
                     } else {
-                        document.body.classList.add('flash-yellow'); setTimeout(() => document.body.classList.remove('flash-yellow'), 300);
-                        o.active = false; 
-                        [...pieces.filter(p => !p.fixed), ...obstacles].forEach(el => { el.vx *= 2; el.vy *= 2; });
-                        startBoost();
+                        document.body.classList.add('flash-yellow');
+                        setTimeout(() => document.body.classList.remove('flash-yellow'), 300);
+                        o.active = false; startBoost();
+                        pieces.filter(p => !p.fixed).forEach(p => { p.vx *= 2; p.vy *= 2; });
                     }
-                    updateCount(); return;
+                    updateCount();
                 }
-            }
+            });
 
-            let pClicked = pieces.filter(p => !p.fixed).find(p => clickX > p.x && clickX < p.x + p.drawW/2 && clickY > p.y && clickY < p.y + p.drawH/2);
-            if (!pClicked) pClicked = pieces.filter(p => p.fixed).find(p => clickX > p.x && clickX < p.x + p.drawW && clickY > p.y && clickY < p.y + p.drawH);
+            // Collision Pièces
+            let pClicked = pieces.find(p => {
+                const s = p.fixed ? 1 : 0.5;
+                return clickX > p.x && clickX < p.x + p.drawW*s && clickY > p.y && clickY < p.y + p.drawH*s;
+            });
 
             if (pClicked) {
                 pClicked.fixed = !pClicked.fixed;
-                if (!pClicked.fixed) { pClicked.vx = (Math.random()-0.5)*6; pClicked.vy = (Math.random()-0.5)*6; }
+                if(navigator.vibrate) navigator.vibrate(10);
                 updateCount();
             }
         }
@@ -192,10 +195,8 @@
             countDisplay.textContent = totalFixed;
             if (totalFixed === pieces.length) {
                 gameFinished = true;
-                if (boostTimer) clearInterval(boostTimer);
-                speedTimerUI.style.display = "none";
                 victoryMsg.style.display = "block";
-                setTimeout(() => { victoryMsg.style.display = "none"; }, 3000);
+                if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
             }
         }
 
