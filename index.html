@@ -3,26 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Puzzle Mystère - Chasse au Trésor</title>
+    <title>Puzzle Mystère - Expert</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #050505; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; }
         canvas { background-color: #000; cursor: crosshair; touch-action: none; border: 1px solid #222; }
-        #ui { color: #666; font-size: 11px; margin-bottom: 8px; text-align: center; pointer-events: none; text-transform: uppercase; letter-spacing: 1px; }
+        #ui { color: #888; font-size: 11px; margin-bottom: 8px; text-align: center; pointer-events: none; text-transform: uppercase; }
         #count { color: #00ff88; font-weight: bold; font-size: 14px; }
         #speed-timer { color: #ffdd00; font-weight: bold; display: none; margin-left: 10px; }
-        
         #victory {
             display: none; position: absolute; top: 50%; left: 50%;
             transform: translate(-50%, -50%); background: rgba(0, 255, 136, 0.9);
             color: #000; padding: 25px 50px; border-radius: 15px;
             text-align: center; font-size: 28px; font-weight: bold; z-index: 100;
-            box-shadow: 0 0 30px rgba(0,255,136,0.5);
         }
-
         .flash-red { animation: flashRed 0.3s; }
-        .flash-yellow { animation: flashYellow 0.3s; }
         @keyframes flashRed { 0% { background-color: #600; } 100% { background-color: #050505; } }
-        @keyframes flashYellow { 0% { background-color: #660; } 100% { background-color: #050505; } }
     </style>
 </head>
 <body>
@@ -48,8 +43,6 @@
         let pieces = [], obstacles = [];
         let gameBounds = { x: 0, y: 0, w: 0, h: 0 };
         let gameFinished = false;
-        let boostTimer = null;
-        let timeLeft = 0;
 
         image.onload = () => { initGame(); animate(); };
 
@@ -64,90 +57,75 @@
             const dw = pW / COLS, dh = pH / ROWS;
             const sw = image.width / COLS, sh = image.height / ROWS;
 
-            pieces = [];
-            for (let r = 0; r < ROWS; r++) {
-                for (let c = 0; c < COLS; c++) {
-                    // On génère une couleur aléatoire par morceau pour le mode "caché"
-                    const randomColor = `hsl(${Math.random() * 360}, 50%, 40%)`;
-                    pieces.push({
-                        x: gameBounds.x + Math.random() * (gameBounds.w - dw),
-                        y: gameBounds.y + Math.random() * (gameBounds.h - dh),
-                        targetX: gameBounds.x + (c * dw), targetY: gameBounds.y + (r * dh),
-                        vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.5) * 4,
-                        fixed: false, sourceX: c * sw, sourceY: r * sh,
-                        sourceW: sw, sourceH: sh, drawW: dw, drawH: dh,
-                        color: randomColor
-                    });
-                }
+            for (let i = 0; i < 18; i++) {
+                pieces.push({
+                    id: i,
+                    x: gameBounds.x + Math.random() * (gameBounds.w - dw),
+                    y: gameBounds.y + Math.random() * (gameBounds.h - dh),
+                    targetX: gameBounds.x + ((i % COLS) * dw),
+                    targetY: gameBounds.y + (Math.floor(i / COLS) * dh),
+                    vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.5) * 4,
+                    fixed: false, sourceX: (i % COLS) * sw, sourceY: Math.floor(i / COLS) * sh,
+                    sourceW: sw, sourceH: sh, drawW: dw, drawH: dh,
+                    color: `hsl(${Math.random() * 360}, 50%, 40%)`
+                });
             }
 
-            obstacles = [];
             for (let i = 0; i < 6; i++) {
                 obstacles.push({
-                    x: gameBounds.x + Math.random() * (gameBounds.w - 30),
-                    y: gameBounds.y + Math.random() * (gameBounds.h - 30),
+                    x: gameBounds.x + Math.random() * (gameBounds.w - 40),
+                    y: gameBounds.y + Math.random() * (gameBounds.h - 40),
                     vx: (Math.random() - 0.5) * 5, vy: (Math.random() - 0.5) * 5,
-                    drawW: 30, drawH: 30, type: i < 4 ? 'skull' : 'speed', active: true
+                    drawW: 45, drawH: 45, type: i < 4 ? 'skull' : 'speed', active: true
                 });
             }
         }
 
-        function startBoost() {
-            if (boostTimer) clearInterval(boostTimer);
-            timeLeft = 30;
-            speedTimerUI.style.display = "inline";
-            boostTimer = setInterval(() => {
-                timeLeft--;
-                secondsDisplay.textContent = timeLeft;
-                if (timeLeft <= 0) {
-                    clearInterval(boostTimer);
-                    speedTimerUI.style.display = "none";
-                }
-            }, 1000);
+        function drawPiece(p) {
+            if (gameFinished) {
+                ctx.drawImage(image, p.sourceX, p.sourceY, p.sourceW, p.sourceH, p.x, p.y, p.drawW, p.drawH);
+            } else {
+                ctx.fillStyle = p.color;
+                const s = p.fixed ? 1 : 0.5;
+                ctx.fillRect(p.x, p.y, p.drawW * s, p.drawH * s);
+                ctx.strokeStyle = "rgba(255,255,255,0.3)";
+                ctx.strokeRect(p.x, p.y, p.drawW * s, p.drawH * s);
+            }
         }
 
         function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Dessiner les limites du jeu
-            ctx.strokeStyle = "#222";
-            ctx.strokeRect(gameBounds.x, gameBounds.y, gameBounds.w, gameBounds.h);
-
-            pieces.forEach(p => {
-                if (!p.fixed && !gameFinished) {
-                    p.x += p.vx; p.y += p.vy;
-                    // Rebond sur les bords
-                    if (p.x < gameBounds.x || p.x + p.drawW/2 > gameBounds.x + gameBounds.w) p.vx *= -1;
-                    if (p.y < gameBounds.y || p.y + p.drawH/2 > gameBounds.y + gameBounds.h) p.vy *= -1;
-                } else if (p.fixed) {
-                    p.x += (p.targetX - p.x) * 0.2; p.y += (p.targetY - p.y) * 0.2;
-                }
-
-                if (gameFinished) {
-                    // IMAGE RÉVÉLÉE
-                    ctx.drawImage(image, p.sourceX, p.sourceY, p.sourceW, p.sourceH, p.x, p.y, p.drawW, p.drawH);
-                } else {
-                    // MODE CACHÉ : Rectangle de couleur
-                    ctx.fillStyle = p.color;
-                    const s = p.fixed ? 1 : 0.5; // Plus petit quand il vole
-                    ctx.fillRect(p.x, p.y, p.drawW * s, p.drawH * s);
-                    ctx.strokeStyle = "rgba(255,255,255,0.2)";
-                    ctx.strokeRect(p.x, p.y, p.drawW * s, p.drawH * s);
-                }
+            // 1. D'abord on dessine les pièces FIXÉES (en dessous)
+            pieces.filter(p => p.fixed).forEach(p => {
+                p.x += (p.targetX - p.x) * 0.2; p.y += (p.targetY - p.y) * 0.2;
+                drawPiece(p);
             });
 
+            // 2. Ensuite on dessine les pièces FLOTTANTES (par-dessus)
             if (!gameFinished) {
+                pieces.filter(p => !p.fixed).forEach(p => {
+                    p.x += p.vx; p.y += p.vy;
+                    if (p.x < gameBounds.x || p.x + p.drawW/2 > gameBounds.x + gameBounds.w) p.vx *= -1;
+                    if (p.y < gameBounds.y || p.y + p.drawH/2 > gameBounds.y + gameBounds.h) p.vy *= -1;
+                    drawPiece(p);
+                });
+
+                // 3. Dessin des Obstacles (toujours au premier plan)
                 obstacles.forEach(o => {
                     if (!o.active) return;
                     o.x += o.vx; o.y += o.vy;
                     if (o.x < gameBounds.x || o.x + o.drawW > gameBounds.x + gameBounds.w) o.vx *= -1;
                     if (o.y < gameBounds.y || o.y + o.drawH > gameBounds.y + gameBounds.h) o.vy *= -1;
-                    
                     ctx.fillStyle = "#111";
                     ctx.fillRect(o.x, o.y, o.drawW, o.drawH);
-                    ctx.font = "16px Arial";
-                    ctx.fillText(o.type === 'skull' ? "💀" : "⚡", o.x + 5, o.y + 22);
+                    ctx.font = "28px Arial"; // Plus grand
+                    ctx.textAlign = "center";
+                    ctx.fillText(o.type === 'skull' ? "💀" : "⚡", o.x + o.drawW/2, o.y + o.drawH/1.3);
                 });
+            } else {
+                // Si fini, on redessine tout proprement pour éviter les trous
+                pieces.forEach(drawPiece);
             }
 
             requestAnimationFrame(animate);
@@ -168,20 +146,18 @@
                         setTimeout(() => document.body.classList.remove('flash-red'), 300);
                         pieces.forEach(p => p.fixed = false);
                     } else {
-                        document.body.classList.add('flash-yellow');
-                        setTimeout(() => document.body.classList.remove('flash-yellow'), 300);
-                        o.active = false; startBoost();
-                        pieces.filter(p => !p.fixed).forEach(p => { p.vx *= 2; p.vy *= 2; });
+                        o.active = false;
+                        pieces.filter(p => !p.fixed).forEach(p => { p.vx *= 1.8; p.vy *= 1.8; });
                     }
                     updateCount();
                 }
             });
 
-            // Collision Pièces
-            let pClicked = pieces.find(p => {
-                const s = p.fixed ? 1 : 0.5;
-                return clickX > p.x && clickX < p.x + p.drawW*s && clickY > p.y && clickY < p.y + p.drawH*s;
-            });
+            // Collision Pièces (en priorité les flottantes car elles sont dessus)
+            let pClicked = pieces.filter(p => !p.fixed).find(p => clickX > p.x && clickX < p.x + p.drawW*0.5 && clickY > p.y && clickY < p.y + p.drawH*0.5);
+            if (!pClicked) {
+                pClicked = pieces.filter(p => p.fixed).find(p => clickX > p.x && clickX < p.x + p.drawW && clickY > p.y && clickY < p.y + p.drawH);
+            }
 
             if (pClicked) {
                 pClicked.fixed = !pClicked.fixed;
@@ -196,7 +172,6 @@
             if (totalFixed === pieces.length) {
                 gameFinished = true;
                 victoryMsg.style.display = "block";
-                if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
             }
         }
 
