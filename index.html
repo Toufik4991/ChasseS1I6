@@ -9,17 +9,6 @@
         canvas { background-color: #000; cursor: crosshair; touch-action: none; border: 1px solid #222; }
         #ui { color: #888; font-size: 11px; margin-bottom: 8px; text-align: center; pointer-events: none; text-transform: uppercase; }
         #count { color: #00ff88; font-weight: bold; font-size: 14px; }
-        #speed-timer { color: #ffdd00; font-weight: bold; display: none; margin-left: 10px; }
-        
-        #victory {
-            display: none; position: absolute; top: 50%; left: 50%;
-            transform: translate(-50%, -50%); background: rgba(255, 255, 255, 0.9);
-            padding: 20px; border-radius: 50%;
-            text-align: center; font-size: 80px; z-index: 100;
-            box-shadow: 0 0 50px rgba(255, 221, 0, 0.8);
-            line-height: 1;
-        }
-
         .flash-red { animation: flashRed 0.3s; }
         @keyframes flashRed { 0% { background-color: #600; } 100% { background-color: #050505; } }
     </style>
@@ -27,18 +16,13 @@
 <body>
     <div id="ui">
         💀 Reset | ⚡ Boost | PROGRÈS: <span id="count">0</span>/18
-        <span id="speed-timer">BOOST: <span id="seconds">30</span>s</span>
     </div>
     <canvas id="gameCanvas"></canvas>
-    <div id="victory">☀️</div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const countDisplay = document.getElementById('count');
-        const speedTimerUI = document.getElementById('speed-timer');
-        const secondsDisplay = document.getElementById('seconds');
-        const victoryMsg = document.getElementById('victory');
 
         const image = new Image();
         image.src = 'Imprim.jpg'; 
@@ -93,7 +77,6 @@
                 const s = p.fixed ? 1 : 0.5;
                 ctx.fillRect(p.x, p.y, p.drawW * s, p.drawH * s);
                 ctx.strokeStyle = "rgba(255,255,255,0.4)";
-                ctx.lineWidth = 1;
                 ctx.strokeRect(p.x, p.y, p.drawW * s, p.drawH * s);
             }
         }
@@ -101,14 +84,14 @@
         function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // 1. DESSIN DES PIÈCES FIXÉES (Bas de pile)
+            // 1. DESSIN DES FIXÉES (Fond)
             pieces.filter(p => p.fixed).forEach(p => {
                 p.x += (p.targetX - p.x) * 0.25; p.y += (p.targetY - p.y) * 0.25;
                 drawPiece(p);
             });
 
             if (!gameFinished) {
-                // 2. DESSIN DES PIÈCES FLOTTANTES (Par-dessus)
+                // 2. DESSIN DES FLOTTANTES (Dessus)
                 pieces.filter(p => !p.fixed).forEach(p => {
                     p.x += p.vx; p.y += p.vy;
                     if (p.x < gameBounds.x || p.x + p.drawW/2 > gameBounds.x + gameBounds.w) p.vx *= -1;
@@ -116,7 +99,7 @@
                     drawPiece(p);
                 });
 
-                // 3. DESSIN DES OBSTACLES (Tout en haut)
+                // 3. OBSTACLES (Premier plan)
                 obstacles.forEach(o => {
                     if (!o.active) return;
                     o.x += o.vx; o.y += o.vy;
@@ -152,13 +135,12 @@
                         pieces.forEach(p => p.fixed = false);
                     } else {
                         o.active = false;
-                        pieces.filter(p => !p.fixed).forEach(p => { p.vx *= 2; p.vy *= 2; });
+                        pieces.filter(p => !p.fixed).forEach(p => { p.vx *= 2.1; p.vy *= 2.1; });
                     }
                     updateCount();
                 }
             });
 
-            // On vérifie les flottantes d'abord car elles sont sur le dessus
             let pClicked = pieces.filter(p => !p.fixed).find(p => clickX > p.x && clickX < p.x + p.drawW*0.5 && clickY > p.y && clickY < p.y + p.drawH*0.5);
             if (!pClicked) {
                 pClicked = pieces.filter(p => p.fixed).find(p => clickX > p.x && clickX < p.x + p.drawW && clickY > p.y && clickY < p.y + p.drawH);
@@ -176,7 +158,6 @@
             countDisplay.textContent = totalFixed;
             if (totalFixed === pieces.length) {
                 gameFinished = true;
-                victoryMsg.style.display = "block";
                 if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
             }
         }
